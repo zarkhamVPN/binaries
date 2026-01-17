@@ -72,7 +72,7 @@ fi
 echo "Making executable..."
 $SUDO chmod +x "${TARGET_PATH}"
 
-echo "Initializing configuration dir..."
+echo "Initializing configuration..."
 mkdir -p "$HOME/.zarkham/config"
 
 echo ""
