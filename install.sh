@@ -2,12 +2,24 @@
 
 set -e
 
-# Version to install
-VERSION="v1.8.2"
 BINARY_NAME="zarkham"
 REPO="zarkhamVPN/binaries"
 
-# Detect OS
+echo "ZARKHAM INSTALLER"
+echo "----------------------"
+
+echo "Checking for latest release..."
+
+API_URL="https://api.github.com/repos/${REPO}/releases/latest"
+LATEST_VERSION=$(curl -s "${API_URL}" | grep '"tag_name":' | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST_VERSION" ]; then
+    echo "Could not fech latest version (API limit or network). Defaulting to v1.8.2"
+    VERSION="v1.8.2"
+else
+    VERSION=$LATEST_VERSION
+fi
+
 OS="$(uname -s)"
 case "${OS}" in
     Linux*)     OS_TYPE="linux";;
@@ -15,7 +27,6 @@ case "${OS}" in
     *)          echo "Unsupported operating system: ${OS}"; exit 1;;
 esac
 
-# Detect Architecture
 ARCH="$(uname -m)"
 case "${ARCH}" in
     x86_64)    ARCH_TYPE="amd64";;
@@ -24,54 +35,47 @@ case "${ARCH}" in
     *)         echo "Unsupported architecture: ${ARCH}"; exit 1;;
 esac
 
-# Construct Asset Name
-# Format: linux-amd64-v1.8.2-alpha
 ASSET_NAME="${OS_TYPE}-${ARCH_TYPE}-${VERSION}-alpha"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
 
-echo "ZARKHAM INSTALLER"
-echo "----------------------"
 echo "Detected: ${OS_TYPE} / ${ARCH_TYPE}"
 echo "Target:   ${VERSION}"
 
-# Download URL
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
-
-# Install Directory
 INSTALL_DIR="/usr/local/bin"
 TARGET_PATH="${INSTALL_DIR}/${BINARY_NAME}"
 
-# Check permissions
 if [ ! -w "$INSTALL_DIR" ]; then
-    echo "⚠️  udo permissions required to install to ${INSTALL_DIR}"
+    echo "sudo permissions required to install to ${INSTALL_DIR}"
     SUDO="sudo"
 else
     SUDO=""
 fi
 
-echo "ownloading from: ${DOWNLOAD_URL}..."
-
-# Download using curl
-if command -v curl >/dev/null 2>&1; then
-    $SUDO curl -L "${DOWNLOAD_URL}" -o "${TARGET_PATH}"
-else
-    echo "Error: curl is required."
-    exit 1
+if [ -f "$TARGET_PATH" ]; then
+    echo "Updating existing installation..."
+    $SUDO rm -f "$TARGET_PATH"
 fi
 
-echo "🔒 Verifying integrity..."
-# Basic check to see if we got a binary or an HTML error page
-if grep -q "<html" "${TARGET_PATH}"; then
-    echo "  Error: Download failed (404 Not Found or Access Denied)."
-    echo "   Please check if release ${VERSION} exists on GitHub."
+echo "Downloading from: ${DOWNLOAD_URL}..."
+$SUDO curl -L "${DOWNLOAD_URL}" -o "${TARGET_PATH}"
+
+FILE_SIZE=$($SUDO wc -c < "${TARGET_PATH}")
+FILE_SIZE="${FILE_SIZE// /}"
+
+if [ "$FILE_SIZE" -lt 1000000 ]; then
+    echo "Error: Download too small (<1MB). Likely an error page."
+    $SUDO head -n 5 "${TARGET_PATH}"
     $SUDO rm "${TARGET_PATH}"
     exit 1
 fi
 
-# Make executable
 echo "Making executable..."
 $SUDO chmod +x "${TARGET_PATH}"
 
+echo "Initializing configuration dir..."
+mkdir -p "$HOME/.zarkham/config"
+
 echo ""
-echo "✅ Installation Complete!"
-echo "   Run 'zarkham' to start."
+echo "Zarkham ${VERSION} Installed Successfully!"
+echo "   Visit https://docs.zarkham.xyz for further steps."
 echo ""
